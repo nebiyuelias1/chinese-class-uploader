@@ -83,7 +83,7 @@ $(cat "$TRANSCRIPTION_FILE")"
     log "Uploading video to YouTube..."
     # You need to install youtube-upload: pip install google-api-python-client oauth2client youtube-upload
     # And set up CLIENT_SECRETS_FILE and authorize it. See instructions below.
-    youtube-upload --title="$TITLE" --description="$DESCRIPTION" --tags="$TAGS" --playlist="$YOUTUBE_PLAYLIST_ID" --privacy=private --client-secrets="$CLIENT_SECRETS_FILE" "$VIDEO_FILE" --default-language='zh-Hans' --embeddable=True --no-publish
+    youtube-upload --title="$TITLE" --description="$DESCRIPTION" --tags="$TAGS" --playlist="$YOUTUBE_PLAYLIST_ID" --privacy=private --client-secrets="$CLIENT_SECRETS_FILE" "$VIDEO_FILE" --default-language='zh-Hans' --embeddable=True
     if [ $? -ne 0 ]; then
         log "Error: YouTube upload failed for $VIDEO_FILE. Skipping."
         rm -f "$AUDIO_FILE" "$TRANSCRIPTION_FILE" "$SUBTITLE_FILE" # Clean up temp files if upload fails
