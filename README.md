@@ -16,6 +16,9 @@ Install the main tools using your package manager and pip:
 # Install youtube-upload (Arch/AUR)
 yay -S youtube-upload-git --overwrite "*"
 
+# Install OpenCC for Simplified to Traditional conversion (Arch/AUR)
+sudo pacman -S opencc
+
 # Install Whisper (OpenAI)
 pip install openai-whisper
 

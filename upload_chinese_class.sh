@@ -35,23 +35,41 @@ find "$VIDEO_DIR" -maxdepth 1 -type f \( -name "*.mkv" -o -name "*.mp4" \) | whi
 
     # --- Placeholder for Audio Extraction ---
     AUDIO_FILE="${TEMP_DIR}/${FILENAME_NO_EXT}.mp3"
-    log "Extracting audio to: $AUDIO_FILE"
-    ffmpeg -i "$VIDEO_FILE" -vn -ar 44100 -ac 2 -b:a 192k "$AUDIO_FILE"
-    if [ $? -ne 0 ]; then
-        log "Error: Audio extraction failed for $VIDEO_FILE. Skipping."
-        continue
+    if [ -f "$AUDIO_FILE" ]; then
+        log "Audio file already exists: $AUDIO_FILE. Skipping extraction."
+    else
+        log "Extracting audio to: $AUDIO_FILE"
+        ffmpeg -i "$VIDEO_FILE" -vn -ar 44100 -ac 2 -b:a 192k "$AUDIO_FILE"
+        if [ $? -ne 0 ]; then
+            log "Error: Audio extraction failed for $VIDEO_FILE. Skipping."
+            continue
+        fi
     fi
 
     # --- Placeholder for Whisper Transcription ---
     TRANSCRIPTION_FILE_BASE="${TEMP_DIR}/${FILENAME_NO_EXT}" # Whisper will add .txt and .srt
     TRANSCRIPTION_FILE="${TRANSCRIPTION_FILE_BASE}.txt"
     SUBTITLE_FILE="${TRANSCRIPTION_FILE_BASE}.srt"
-    log "Transcribing audio to: ${TRANSCRIPTION_FILE_BASE}.{txt,srt}"
-    whisper "$AUDIO_FILE" --language Chinese --model small --output_dir "$TEMP_DIR" --output_format all --initial_prompt "以下是繁體中文的課堂內容。"
-    if [ $? -ne 0 ]; then
-        log "Error: Transcription failed for $AUDIO_FILE. Skipping."
-        rm -f "$AUDIO_FILE" # Clean up audio file
-        continue
+    
+    if [ -f "$TRANSCRIPTION_FILE" ] && [ -f "$SUBTITLE_FILE" ]; then
+        log "Transcription files already exist. Skipping transcription."
+    else
+        log "Transcribing audio to: ${TRANSCRIPTION_FILE_BASE}.{txt,srt}"
+        whisper "$AUDIO_FILE" --language Chinese --model small --output_dir "$TEMP_DIR" --output_format all --initial_prompt "以下是繁體中文的課堂內容。"
+        if [ $? -ne 0 ]; then
+            log "Error: Transcription failed for $AUDIO_FILE. Skipping."
+            rm -f "$AUDIO_FILE" # Clean up audio file
+            continue
+        fi
+    fi
+
+    # --- Convert to Traditional Chinese using OpenCC ---
+    log "Converting transcription to Traditional Chinese..."
+    if [ -f "$TRANSCRIPTION_FILE" ]; then
+        opencc -i "$TRANSCRIPTION_FILE" -o "${TRANSCRIPTION_FILE}.tmp" -c /usr/share/opencc/s2t.json && mv "${TRANSCRIPTION_FILE}.tmp" "$TRANSCRIPTION_FILE"
+    fi
+    if [ -f "$SUBTITLE_FILE" ]; then
+        opencc -i "$SUBTITLE_FILE" -o "${SUBTITLE_FILE}.tmp" -c /usr/share/opencc/s2t.json && mv "${SUBTITLE_FILE}.tmp" "$SUBTITLE_FILE"
     fi
 
     # --- Placeholder for YouTube Metadata Preparation ---
@@ -63,15 +81,7 @@ find "$VIDEO_DIR" -maxdepth 1 -type f \( -name "*.mkv" -o -name "*.mp4" \) | whi
 
     TITLE="Chinese Class with ${TEACHER_NAME} - ${VIDEO_DATE}"
     
-    DESCRIPTION="Recorded on ${VIDEO_DATE_TIME}.
-
-"
-    if [ -s "$TRANSCRIPTION_FILE" ]; then # Check if file exists and is not empty
-        DESCRIPTION+="Transcription:
-$(cat "$TRANSCRIPTION_FILE")"
-    else
-        DESCRIPTION+="No transcription available."
-    fi
+    DESCRIPTION="Recorded on ${VIDEO_DATE_TIME}."
 
     TAGS="Chinese,Class,Mandarin,${TEACHER_NAME},Language,Learning,${VIDEO_DATE}"
 
@@ -83,7 +93,7 @@ $(cat "$TRANSCRIPTION_FILE")"
     log "Uploading video to YouTube..."
     # You need to install youtube-upload: pip install google-api-python-client oauth2client youtube-upload
     # And set up CLIENT_SECRETS_FILE and authorize it. See instructions below.
-    youtube-upload --title="$TITLE" --description="$DESCRIPTION" --tags="$TAGS" --playlist="$YOUTUBE_PLAYLIST_ID" --privacy=private --client-secrets="$CLIENT_SECRETS_FILE" "$VIDEO_FILE" --default-language='zh-Hans' --embeddable=True
+    youtube-upload --title="$TITLE" --description="$DESCRIPTION" --tags="$TAGS" --playlist="$YOUTUBE_PLAYLIST_ID" --privacy=private --client-secrets="$CLIENT_SECRETS_FILE" "$VIDEO_FILE" --default-language='zh-Hant' --embeddable=True
     if [ $? -ne 0 ]; then
         log "Error: YouTube upload failed for $VIDEO_FILE. Skipping."
         rm -f "$AUDIO_FILE" "$TRANSCRIPTION_FILE" "$SUBTITLE_FILE" # Clean up temp files if upload fails
