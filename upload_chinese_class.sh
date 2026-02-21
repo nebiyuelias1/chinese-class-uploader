@@ -4,7 +4,7 @@
 VIDEO_DIR="/home/netale/Videos/chinese_with_chini/"
 UPLOADED_DIR="${VIDEO_DIR}/uploaded"
 TEMP_DIR="/home/netale/.gemini/tmp/chinese_class_uploads" # Use the provided temp dir as base
-YOUTUBE_PLAYLIST_ID="PLflbVNkVSAPQlZLH-AI_IwJpYu4TilvvA"
+YOUTUBE_PLAYLIST_ID="Chinese w/ Chini"
 TEACHER_NAME="Chini"
 CLIENT_SECRETS_FILE="client_secrets.json"
 
@@ -91,13 +91,30 @@ find "$VIDEO_DIR" -maxdepth 1 -type f \( -name "*.mkv" -o -name "*.mp4" \) | whi
 
     # --- Placeholder for YouTube Upload ---
     log "Uploading video to YouTube..."
-    # You need to install youtube-upload: pip install google-api-python-client oauth2client youtube-upload
-    # And set up CLIENT_SECRETS_FILE and authorize it. See instructions below.
-    youtube-upload --title="$TITLE" --description="$DESCRIPTION" --tags="$TAGS" --playlist="$YOUTUBE_PLAYLIST_ID" --privacy=private --client-secrets="$CLIENT_SECRETS_FILE" "$VIDEO_FILE" --default-language='zh-Hant' --embeddable=True
-    if [ $? -ne 0 ]; then
+    # We use a temp file to capture output because unbuffer makes piping difficult
+    UPLOAD_LOG="${TEMP_DIR}/upload_${FILENAME_NO_EXT}.log"
+    unbuffer youtube-upload --title="$TITLE" --description="$DESCRIPTION" --tags="$TAGS" --playlist="$YOUTUBE_PLAYLIST_ID" --privacy=private --client-secrets="$CLIENT_SECRETS_FILE" "$VIDEO_FILE" --default-language='zh-Hant' --embeddable=True | tee "$UPLOAD_LOG"
+    
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
         log "Error: YouTube upload failed for $VIDEO_FILE. Skipping."
-        rm -f "$AUDIO_FILE" "$TRANSCRIPTION_FILE" "$SUBTITLE_FILE" # Clean up temp files if upload fails
+        rm -f "$AUDIO_FILE" "$TRANSCRIPTION_FILE" "$SUBTITLE_FILE" "$UPLOAD_LOG"
         continue
+    fi
+
+    VIDEO_ID=$(grep "Video id" "$UPLOAD_LOG" | awk -F"'" '{print $2}')
+    rm -f "$UPLOAD_LOG"
+
+    if [ -n "$VIDEO_ID" ]; then
+        log "Video uploaded successfully. Video ID: $VIDEO_ID"
+        # --- Upload Subtitles ---
+        if [ -f "$SUBTITLE_FILE" ]; then
+            log "Uploading subtitles ($SUBTITLE_FILE)..."
+            python upload_subtitles.py --video-id "$VIDEO_ID" --file "$SUBTITLE_FILE" --language "zh-Hant" --name "Traditional Chinese"
+        else
+            log "Warning: Subtitle file not found, skipping caption upload."
+        fi
+    else
+        log "Warning: Could not extract Video ID from upload output. Subtitles will not be uploaded."
     fi
 
     # --- Cleanup and Move ---

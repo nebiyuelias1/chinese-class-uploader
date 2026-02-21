@@ -49,6 +49,8 @@ Run the provided helper script to generate the required YouTube token:
 ```bash
 python get_youtube_token.py
 ```
+*Note: If you have authorized before, you must re-run this to grant the new `force-ssl` scope required for uploading subtitles.*
+
 - A browser window will open.
 - Log in with your test user account.
 - Click "Advanced" -> "Go to Chinese (unsafe)" to grant permission.
@@ -58,11 +60,8 @@ python get_youtube_token.py
 
 ## Usage
 
-1. **Place your videos** in the directory specified in the script:
-   - Default: `/home/netale/Videos/Chinese with Chini/`
-2. **Configure the script** (optional):
-   - Edit `upload_chinese_class.sh` to change the `YOUTUBE_PLAYLIST_ID` or `TEACHER_NAME`.
-3. **Run the uploader**:
+1. **Place your videos** in the directory specified in the script.
+2. **Run the uploader**:
 
 ```bash
 bash upload_chinese_class.sh
@@ -70,11 +69,13 @@ bash upload_chinese_class.sh
 
 ### What the script does:
 1. **Scans** for `.mkv` or `.mp4` files.
-2. **Extracts** audio to a temporary MP3 file.
-3. **Transcribes** the audio to Chinese text and SRT subtitles.
-4. **Uploads** the video to YouTube as **Private**.
-5. **Updates** the title with the date and the description with the transcription.
-6. **Moves** the finished files to an `uploaded/` folder.
+2. **Extracts** audio to a temporary MP3 file (skips if exists).
+3. **Transcribes** using OpenAI's Whisper (skips if exists).
+4. **Converts** transcription to Traditional Chinese using OpenCC.
+5. **Uploads** the video to YouTube as **Private**.
+6. **Captures** the new Video ID.
+7. **Uploads** the converted `.srt` file as a caption track.
+8. **Moves** the finished files to an `uploaded/` folder.
 
 ## Troubleshooting
 
