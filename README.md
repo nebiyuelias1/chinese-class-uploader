@@ -12,6 +12,8 @@ This tool automates the process of extracting audio, transcribing it using OpenA
 ### 2. Required Tools & Libraries
 Install the main tools using your package manager and pip:
 
+`pacman -S python-setuptools`
+
 ```bash
 # Install youtube-upload (Arch/AUR)
 yay -S youtube-upload-git --overwrite "*"
@@ -20,10 +22,10 @@ yay -S youtube-upload-git --overwrite "*"
 sudo pacman -S opencc
 
 # Install Whisper (OpenAI)
-pip install openai-whisper
+sudo pacman -S openai-whisper
 
 # Install Authentication helper
-pip install google-auth-oauthlib
+sudo pacman -S google-auth-oauthlib
 ```
 
 ---

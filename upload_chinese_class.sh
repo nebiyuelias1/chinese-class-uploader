@@ -101,7 +101,18 @@ find "$VIDEO_DIR" -maxdepth 1 -type f \( -name "*.mkv" -o -name "*.mp4" \) | whi
         continue
     fi
 
-    VIDEO_ID=$(grep "Video id" "$UPLOAD_LOG" | awk -F"'" '{print $2}')
+    # Extract Video ID from the 'Video URL' line or the standalone ID line
+    VIDEO_ID=$(grep -oP "watch\?v=\K[^&\s]+" "$UPLOAD_LOG" | head -n 1)
+    
+    if [ -z "$VIDEO_ID" ]; then
+        # Fallback: look for the ID on a line by itself (often the last line)
+        VIDEO_ID=$(tail -n 5 "$UPLOAD_LOG" | grep -v "Adding video to playlist" | grep -oE "^[a-zA-Z0-9_-]{11}$" | tail -n 1)
+    fi
+
+    if [ -z "$VIDEO_ID" ]; then
+        # Legacy fallback
+        VIDEO_ID=$(grep "Video id" "$UPLOAD_LOG" | awk -F"'" '{print $2}')
+    fi
     rm -f "$UPLOAD_LOG"
 
     if [ -n "$VIDEO_ID" ]; then
