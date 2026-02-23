@@ -22,7 +22,7 @@ log "Starting Chinese class video processing script."
 
 # Find new video files (e.g., .mkv, .mp4)
 # Exclude files already in the UPLOADED_DIR by checking their path
-find "$VIDEO_DIR" -maxdepth 1 -type f \( -name "*.mkv" -o -name "*.mp4" \) | while read -r VIDEO_FILE; do
+while read -r VIDEO_FILE <&3; do
     # Check if the file is within the UPLOADED_DIR, if so, skip it
     if [[ "$VIDEO_FILE" == "$UPLOADED_DIR"* ]]; then
         log "Skipping $VIDEO_FILE as it's already in the uploaded directory."
@@ -142,6 +142,6 @@ find "$VIDEO_DIR" -maxdepth 1 -type f \( -name "*.mkv" -o -name "*.mp4" \) | whi
     log "Finished processing $VIDEO_FILE"
     log "----------------------------------------------------"
 
-done
+done 3< <(find "$VIDEO_DIR" -maxdepth 1 -type f \( -name "*.mkv" -o -name "*.mp4" \))
 
 log "Script finished."

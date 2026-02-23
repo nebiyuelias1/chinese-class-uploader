@@ -41,7 +41,7 @@ def upload_subtitle(video_id, subtitle_file, language, name):
     print(f"Uploading subtitle {subtitle_file} for video {video_id}...")
 
     try:
-        media = MediaFileUpload(subtitle_file, mimetype="application/octet-stream")
+        media = MediaFileUpload(subtitle_file, mimetype="application/octet-stream", resumable=True)
         request = (
             youtube.captions()
             .insert(
@@ -57,10 +57,17 @@ def upload_subtitle(video_id, subtitle_file, language, name):
                 media_body=media,
             )
         )
-        response = request.execute()
-        print(f"Subtitle uploaded successfully. ID: {response['id']}")
+        
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                sys.stdout.write(f"\rUploading subtitle... {int(status.progress() * 100)}%")
+                sys.stdout.flush()
+        
+        print(f"\nSubtitle uploaded successfully. ID: {response['id']}")
     except Exception as e:
-        print(f"Error uploading subtitle: {e}")
+        print(f"\nError uploading subtitle: {e}")
 
 
 def main():
