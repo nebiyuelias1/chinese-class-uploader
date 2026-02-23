@@ -12,7 +12,7 @@ This tool automates the process of extracting audio, transcribing it using OpenA
 ### 2. Required Tools & Libraries
 Install the main tools using your package manager and pip:
 
-`pacman -S python-setuptools`
+`pacman -S python-setuptools python-cryptography`
 
 ```bash
 # Install youtube-upload (Arch/AUR)
