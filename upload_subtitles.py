@@ -6,11 +6,15 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# Scopes needed for caption upload
-SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
+# Scopes needed for caption upload - using the broader scope to match common uploaders
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+    "https://www.googleapis.com/auth/youtube.upload"
+]
 
 
-def load_credentials(token_path):
+def load_credentials(token_path, client_secrets_path="client_secrets.json"):
     if not os.path.exists(token_path):
         print(f"Error: Token file not found at {token_path}")
         return None
@@ -18,20 +22,46 @@ def load_credentials(token_path):
     with open(token_path, "r") as f:
         token_data = json.load(f)
 
-    # Convert the oauth2client format to google-auth format
-    creds = Credentials(
-        token=token_data["access_token"],
-        refresh_token=token_data["refresh_token"],
-        token_uri=token_data["token_uri"],
-        client_id=token_data["client_id"],
-        client_secret=token_data["client_secret"],
-        scopes=token_data["scopes"],
-    )
+    # Check if it's the porjo/youtubeuploader format (request.token)
+    if "access_token" in token_data and "token_type" in token_data:
+        # Standard oauth2.Token format. 
+        # We need client_id and client_secret which are usually in client_secrets.json
+        client_id = None
+        client_secret = None
+        if os.path.exists(client_secrets_path):
+            with open(client_secrets_path, "r") as f:
+                cs_data = json.load(f)
+                # client_secrets.json can be "installed" or "web" type
+                key = "installed" if "installed" in cs_data else "web"
+                client_id = cs_data[key]["client_id"]
+                client_secret = cs_data[key]["client_secret"]
+
+        creds = Credentials(
+            token=token_data["access_token"],
+            refresh_token=token_data.get("refresh_token"),
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+    else:
+        # Convert the old oauth2client format to google-auth format
+        creds = Credentials(
+            token=token_data["access_token"],
+            refresh_token=token_data["refresh_token"],
+            token_uri=token_data["token_uri"],
+            client_id=token_data["client_id"],
+            client_secret=token_data["client_secret"],
+            scopes=token_data["scopes"],
+        )
     return creds
 
 
 def upload_subtitle(video_id, subtitle_file, language, name):
-    token_path = os.path.expanduser("~/.youtube-upload-credentials.json")
+    # Try local request.token (youtubeuploader) first, then fallback to global home dir
+    token_path = "request.token"
+    if not os.path.exists(token_path):
+        token_path = os.path.expanduser("~/.youtube-upload-credentials.json")
+        
     creds = load_credentials(token_path)
     if not creds:
         return

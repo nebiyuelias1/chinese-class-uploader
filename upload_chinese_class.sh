@@ -1,16 +1,38 @@
 #!/bin/bash
 
+# Get the directory where the script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
 # Configuration
 VIDEO_DIR="/home/netale/Videos/chinese_with_chini/"
 UPLOADED_DIR="${VIDEO_DIR}/uploaded"
 TEMP_DIR="/home/netale/.gemini/tmp/chinese_class_uploads" # Use the provided temp dir as base
-YOUTUBE_PLAYLIST_ID="Chinese w/ Chini"
+YOUTUBE_PLAYLIST_ID="PLflbVNkVSAPQlZLH-AI_IwJpYu4TilvvA"
 TEACHER_NAME="Chini"
 CLIENT_SECRETS_FILE="client_secrets.json"
+VENV_PATH="${SCRIPT_DIR}/venv"
 
 # Ensure necessary directories exist
 mkdir -p "$UPLOADED_DIR"
 mkdir -p "$TEMP_DIR"
+
+# Activation and Binaries
+if [ -d "$VENV_PATH" ]; then
+    source "$VENV_PATH/bin/activate"
+    PYTHON_BIN="python"
+    WHISPER_BIN="whisper"
+else
+    PYTHON_BIN="python3"
+    WHISPER_BIN="whisper"
+fi
+
+# Use local youtubeuploader binary if available, otherwise fallback to system
+if [ -f "${SCRIPT_DIR}/bin/youtubeuploader" ]; then
+    YOUTUBE_UPLOAD_BIN="${SCRIPT_DIR}/bin/youtubeuploader"
+else
+    YOUTUBE_UPLOAD_BIN="youtubeuploader"
+fi
 
 # Function for logging
 log() {
@@ -55,7 +77,7 @@ while read -r VIDEO_FILE <&3; do
         log "Transcription files already exist. Skipping transcription."
     else
         log "Transcribing audio to: ${TRANSCRIPTION_FILE_BASE}.{txt,srt}"
-        whisper "$AUDIO_FILE" --language Chinese --model small --output_dir "$TEMP_DIR" --output_format all --initial_prompt "以下是繁體中文的課堂內容。"
+        $WHISPER_BIN "$AUDIO_FILE" --language Chinese --model small --output_dir "$TEMP_DIR" --output_format all --initial_prompt "以下是繁體中文的課堂內容。"
         if [ $? -ne 0 ]; then
             log "Error: Transcription failed for $AUDIO_FILE. Skipping."
             rm -f "$AUDIO_FILE" # Clean up audio file
@@ -89,11 +111,19 @@ while read -r VIDEO_FILE <&3; do
     log "YouTube Description (first 100 chars): ${DESCRIPTION:0:100}..."
     log "YouTube Tags: $TAGS"
 
-    # --- Placeholder for YouTube Upload ---
+    # --- YouTube Upload using porjo/youtubeuploader ---
     log "Uploading video to YouTube..."
-    # We use a temp file to capture output because unbuffer makes piping difficult
     UPLOAD_LOG="${TEMP_DIR}/upload_${FILENAME_NO_EXT}.log"
-    unbuffer youtube-upload --title="$TITLE" --description="$DESCRIPTION" --tags="$TAGS" --playlist="$YOUTUBE_PLAYLIST_ID" --privacy=private --client-secrets="$CLIENT_SECRETS_FILE" "$VIDEO_FILE" --default-language='zh-Hant' --embeddable=True | tee "$UPLOAD_LOG"
+    
+    # youtubeuploader uses -title, -description, -tags (comma sep), -privacy, -playlistid, -filename
+    $YOUTUBE_UPLOAD_BIN \
+        -title="$TITLE" \
+        -description="$DESCRIPTION" \
+        -tags="$TAGS" \
+        -privacy="private" \
+        -playlistID="$YOUTUBE_PLAYLIST_ID" \
+        -filename="$VIDEO_FILE" \
+        -language="zh-Hant" | tee "$UPLOAD_LOG"
     
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
         log "Error: YouTube upload failed for $VIDEO_FILE. Skipping."
@@ -101,17 +131,10 @@ while read -r VIDEO_FILE <&3; do
         continue
     fi
 
-    # Extract Video ID from the 'Video URL' line or the standalone ID line
-    VIDEO_ID=$(grep -oP "watch\?v=\K[^&\s]+" "$UPLOAD_LOG" | head -n 1)
-    
+    # Extract Video ID from output (Video ID: XXXXXXXXXXX or watch?v=XXXXXXXXXXX)
+    VIDEO_ID=$(grep -oP "watch\?v=\K[a-zA-Z0-9_-]{11}" "$UPLOAD_LOG" | head -n 1)
     if [ -z "$VIDEO_ID" ]; then
-        # Fallback: look for the ID on a line by itself (often the last line)
-        VIDEO_ID=$(tail -n 5 "$UPLOAD_LOG" | grep -v "Adding video to playlist" | grep -oE "^[a-zA-Z0-9_-]{11}$" | tail -n 1)
-    fi
-
-    if [ -z "$VIDEO_ID" ]; then
-        # Legacy fallback
-        VIDEO_ID=$(grep "Video id" "$UPLOAD_LOG" | awk -F"'" '{print $2}')
+        VIDEO_ID=$(grep -oP "Video ID: \K[a-zA-Z0-9_-]{11}" "$UPLOAD_LOG" | head -n 1)
     fi
     rm -f "$UPLOAD_LOG"
 
@@ -120,7 +143,7 @@ while read -r VIDEO_FILE <&3; do
         # --- Upload Subtitles ---
         if [ -f "$SUBTITLE_FILE" ]; then
             log "Uploading subtitles ($SUBTITLE_FILE)..."
-            python upload_subtitles.py --video-id "$VIDEO_ID" --file "$SUBTITLE_FILE" --language "zh-Hant" --name "Traditional Chinese"
+            $PYTHON_BIN upload_subtitles.py --video-id "$VIDEO_ID" --file "$SUBTITLE_FILE" --language "zh-Hant" --name "Traditional Chinese"
         else
             log "Warning: Subtitle file not found, skipping caption upload."
         fi

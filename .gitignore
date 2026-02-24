@@ -1,0 +1,4 @@
+venv/
+request.token
+bin/
+client_secrets.json
